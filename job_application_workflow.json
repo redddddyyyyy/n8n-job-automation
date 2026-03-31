@@ -1,0 +1,780 @@
+{
+  "name": "AI-Agentic Daily Data Pipeline - Sanitized Public Export",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "id": "6e01174f-b1ce-4176-b029-1c3ee7a41f5e",
+      "name": "Daily 7AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3cb46614-b283-477f-89cb-cc12d547e8c8",
+              "name": "queries",
+              "value": "Robotics Engineer Intern,Autonomous Driving Intern,ML AI Engineer Intern,PLC Engineer Intern,Computer Vision Engineer Intern,Automation Engineer Intern",
+              "type": "string"
+            },
+            {
+              "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+              "name": "jobsPerQuery",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+              "name": "resumeFileId",
+              "value": "={{ $env.GOOGLE_RESUME_FILE_ID }}",
+              "type": "string"
+            },
+            {
+              "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+              "name": "recipientEmail",
+              "value": "={{ $env.DIGEST_RECIPIENT_EMAIL }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b32879ff-c808-4fb4-ad0e-beda88c6a0a7",
+      "name": "Config - Search Queries & Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        368,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split comma-separated queries into individual items\nconst config = $input.first().json;\nconst queries = config.queries.split(',').map(q => q.trim());\n\nreturn queries.map(query => ({\n  json: {\n    searchQuery: query,\n    resumeFileId: config.resumeFileId,\n    recipientEmail: config.recipientEmail,\n    jobsPerQuery: parseInt(config.jobsPerQuery)\n  }\n}));"
+      },
+      "id": "276cb856-65a8-4b91-adec-19fe7f40455d",
+      "name": "Split Into Individual Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/curious_coder~linkedin-jobs-scraper/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $env.APIFY_API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"urls\": [\"https://www.linkedin.com/jobs/search/?keywords={{ $json.searchQuery.split(' ').join('+') }}&location=United+States&f_JT=I&f_E=1%2C2&f_TPR=r86400\"],\n  \"count\": 10,\n  \"scrapeCompany\": false\n}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "a5cdf398-42e2-4a15-b609-098974d379af",
+      "name": "Apify - Scrape LinkedIn Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        832,
+        16
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/datasets/{{ $json.data.defaultDatasetId }}/items?token={{ $env.APIFY_API_TOKEN }}&limit={{ $json.jobsPerQuery || 3 }}",
+        "options": {}
+      },
+      "id": "9753051a-e16f-48a1-9b3a-d1b3b0647765",
+      "name": "Fetch Apify Job Results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        16
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst searchQuery = $('Split Into Individual Queries').first().json.searchQuery;\nif (!items || items.length === 0) {\n  return [{ json: { error: 'No jobs found', searchQuery } }];\n}\nreturn items.map(job => ({\n  json: {\n    searchQuery: searchQuery,\n    jobTitle: job.title || 'N/A',\n    company: job.companyName || job.company || 'N/A',\n    location: job.location || 'N/A',\n    jobUrl: job.url || job.link || '#',\n    postedDate: job.postedAt || job.publishedAt || 'N/A',\n    description: (job.description || job.descriptionText || 'No description available').substring(0, 4000),\n    seniorityLevel: job.seniorityLevel || 'N/A',\n    employmentType: job.employmentType || 'N/A',\n    resumeFileId: $('Config - Search Queries & Settings').first().json.resumeFileId,\n    recipientEmail: $('Config - Search Queries & Settings').first().json.recipientEmail\n  }\n}));"
+      },
+      "id": "673be2fe-e9fb-4f90-8caa-3300077b9a6a",
+      "name": "Parse Job Listings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.resumeFileId }}"
+        },
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "text/plain"
+            }
+          }
+        }
+      },
+      "id": "1aa6e734-7730-4b86-9f78-1c5063cab6a5",
+      "name": "Google Drive - Get Resume",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2144,
+        -288
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "22628a63-fc60-48fe-8549-8cfa8edc7e8a",
+      "name": "Extract Resume Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        2320,
+        -288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge resume text back with job data\nconst resumeText = $input.first().json.data || $input.first().json.text || 'Resume text extraction failed';\nconst jobs = $('Rank & Filter Top Jobs').all();\n\nreturn jobs.map(job => ({\n  json: {\n    ...job.json,\n    resumeText: typeof resumeText === 'string' ? resumeText : JSON.stringify(resumeText)\n  }\n}));"
+      },
+      "id": "8d8c993b-f1b9-4f7a-98cc-077fe7e84eb7",
+      "name": "Merge Resume + Job Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": {{ JSON.stringify(\"You are helping adapt a resume for a robotics, AI, or automation internship.\\n\\nHere is the candidate's base resume:\\n---\\n\" + $json.resumeText.substring(0, 3000) + \"\\n---\\n\\nHere is the target job:\\nTitle: \" + $json.jobTitle + \"\\nCompany: \" + $json.company + \"\\nLocation: \" + $json.location + \"\\nDescription:\\n\" + $json.description.substring(0, 3000) + \"\\n\\nINSTRUCTIONS:\\n1. Keep all factual information accurate and do not invent experience, metrics, employers, schools, or project outcomes.\\n2. Reorder existing bullets to prioritize relevant skills.\\n3. Mirror important technical terms from the job description only when they are supported by the resume.\\n4. Preserve the original resume structure as much as possible.\\n5. Keep the result concise enough for manual review before applying.\\n6. Output only the adapted resume text, with no explanations or commentary.\\n\\nCandidate highlight placeholders to preserve only if present in the source resume:\\n- Robotics graduate coursework or projects\\n- ROS 2 / path planning work\\n- Computer vision or sensor-fusion work\\n- Manipulation or trajectory-planning work\\n- Relevant internships, traineeships, or open-source contributions\") }}\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.3,\n    \"maxOutputTokens\": 8192\n  }\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "defbd522-b557-40f8-87b9-b55d46d286ef",
+      "name": "Gemini - Tailor Resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2496,
+        -288
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract tailored resume from Gemini response\nconst geminiResponse = $input.first().json;\nlet tailoredResume = '';\n\ntry {\n  tailoredResume = geminiResponse.candidates[0].content.parts[0].text;\n} catch (e) {\n  tailoredResume = 'ERROR: Failed to generate tailored resume. Raw response: ' + JSON.stringify(geminiResponse).substring(0, 500);\n}\n\nconst jobData = $('Loop Over Items').first().json;\n\nreturn [{\n  json: {\n    jobTitle: jobData.jobTitle,\n    company: jobData.company,\n    location: jobData.location,\n    jobUrl: jobData.jobUrl,\n    postedDate: jobData.postedDate,\n    searchQuery: jobData.searchQuery,\n    tailoredResume: tailoredResume,\n    recipientEmail: jobData.recipientEmail || .DIGEST_RECIPIENT_EMAIL || 'example@example.com',\n    docTitle: `Resume - ${jobData.company} - ${jobData.jobTitle} - ${new Date().toISOString().split('T')[0]}`\n  }\n}];"
+      },
+      "id": "df7f32a5-2e9d-4e03-aee6-45f777f5b220",
+      "name": "Parse Tailored Resume",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://docs.googleapis.com/v1/documents",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": \"{{ $json.docTitle }}\"\n}",
+        "options": {}
+      },
+      "id": "28398ceb-dc4e-4491-bae3-e9ff633a26bd",
+      "name": "Create Google Doc",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2544,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://docs.googleapis.com/v1/documents/{{ $json.documentId }}:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"requests\": [\n    {\n      \"insertText\": {\n        \"location\": { \"index\": 1 },\n        \"text\": {{ JSON.stringify($('Parse Tailored Resume').first().json.tailoredResume) }}\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "f18625bc-9ee8-44c5-9786-4b87ad5a28a0",
+      "name": "Insert Resume Text into Doc",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2768,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build link item for summary table\nconst jobData = $('Parse Tailored Resume').first().json;\nconst docId = $('Create Google Doc').first().json.documentId;\n\nreturn [{\n  json: {\n    company: jobData.company,\n    jobTitle: jobData.jobTitle,\n    location: jobData.location,\n    category: jobData.searchQuery,\n    postedDate: jobData.postedDate,\n    jobUrl: jobData.jobUrl,\n    resumeDocUrl: `https://docs.google.com/document/d/${docId}/edit`,\n    docTitle: jobData.docTitle\n  }\n}];"
+      },
+      "id": "aeae1473-e229-4cb8-b910-59ccf349d43b",
+      "name": "Build Summary Link Item",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2992,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "allJobs",
+        "options": {}
+      },
+      "id": "709bbc3f-956c-4616-9d50-0213da29e43d",
+      "name": "Aggregate All Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        3216,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build HTML email summary\nconst allJobs = $input.first().json.allJobs;\nconst now = new Date().toLocaleDateString('en-US', { \n  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',\n  hour: '2-digit', minute: '2-digit'\n});\n\nconst categories = {};\nfor (const job of allJobs) {\n  if (!categories[job.category]) categories[job.category] = [];\n  categories[job.category].push(job);\n}\n\nlet tableRows = '';\nfor (const [category, jobs] of Object.entries(categories)) {\n  tableRows += `<tr><td colspan=\"6\" style=\"background:#1a1a2e;color:#fff;padding:10px;font-weight:bold;font-size:14px;\">${category}</td></tr>`;\n  for (const job of jobs) {\n    tableRows += `\n      <tr style=\"border-bottom:1px solid #eee;\">\n        <td style=\"padding:8px;\">${job.company}</td>\n        <td style=\"padding:8px;\">${job.jobTitle}</td>\n        <td style=\"padding:8px;\">${job.location}</td>\n        <td style=\"padding:8px;\">${job.postedDate}</td>\n        <td style=\"padding:8px;\"><a href=\"${job.jobUrl}\" style=\"color:#0066cc;\">Job Link</a></td>\n        <td style=\"padding:8px;\"><a href=\"${job.resumeDocUrl}\" style=\"color:#28a745;font-weight:bold;\">Resume Doc</a></td>\n      </tr>`;\n  }\n}\n\nconst html = `\n<div style=\"font-family:Arial,sans-serif;max-width:900px;margin:0 auto;\">\n  <div style=\"background:#1a1a2e;color:#fff;padding:20px;border-radius:8px 8px 0 0;\">\n    <h1 style=\"margin:0;font-size:22px;\">Your ATS Resumes Are Ready (${allJobs.length})</h1>\n    <p style=\"margin:5px 0 0;opacity:0.8;\">Generated: ${now}</p>\n  </div>\n  \n  <table style=\"width:100%;border-collapse:collapse;background:#fff;\">\n    <thead>\n      <tr style=\"background:#f5f5f5;\">\n        <th style=\"padding:10px;text-align:left;\">Company</th>\n        <th style=\"padding:10px;text-align:left;\">Role</th>\n        <th style=\"padding:10px;text-align:left;\">Location</th>\n        <th style=\"padding:10px;text-align:left;\">Posted</th>\n        <th style=\"padding:10px;text-align:left;\">Job</th>\n        <th style=\"padding:10px;text-align:left;\">Resume</th>\n      </tr>\n    </thead>\n    <tbody>\n      ${tableRows}\n    </tbody>\n  </table>\n  \n  <div style=\"background:#f0f7ff;padding:15px;border-radius:0 0 8px 8px;margin-top:2px;\">\n    <p style=\"margin:0;font-size:13px;color:#555;\">Tip: Review each tailored resume before applying. The AI preserves your real experience but reorders and keywords-optimizes for each role.</p>\n  </div>\n</div>`;\n\nreturn [{\n  json: {\n    emailHtml: html,\n    subject: `Daily Job Resumes Ready (${allJobs.length}) - ${new Date().toISOString().split('T')[0]}`,\n    recipientEmail: allJobs[0]?.recipientEmail || $('Config - Search Queries & Settings').first().json.recipientEmail,\n    jobCount: allJobs.length\n  }\n}];"
+      },
+      "id": "c39f1757-3f69-421b-989b-a971ec549267",
+      "name": "Build Email Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.recipientEmail }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{  $json.emailHtml  }}",
+        "options": {}
+      },
+      "id": "6a5237fc-1037-492e-83ed-bc60699811b1",
+      "name": "Gmail - Send Summary",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3664,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error handler - send notification on failure\nconst error = $input.first().json;\nreturn [{\n  json: {\n    errorMessage: JSON.stringify(error).substring(0, 1000),\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "183c307d-0aa8-4d73-af49-cd6ec46dde48",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1936,
+        448
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Config - Search Queries & Settings').first().json.recipientEmail }}",
+        "subject": "=Job Automation Error - {{ new Date().toISOString().split('T')[0] }}",
+        "emailType": "text",
+        "message": "=Your job automation workflow encountered an error:\n\n{{ $json.errorMessage }}\n\nTimestamp: {{ $json.timestamp }}\n\nCheck your n8n dashboard for details.",
+        "options": {}
+      },
+      "id": "974a3c0d-b9e9-47b1-b57f-69631f7d3040",
+      "name": "Gmail - Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2192,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1968,
+        -288
+      ],
+      "id": "aaca3bc6-6d46-4046-a1d2-7130de98e901",
+      "name": "Wait"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1952,
+        0
+      ],
+      "id": "4500e8d9-ee7b-4e69-9167-1888c7465d9c",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst skillKeywords = [\n  'python', 'ros', 'autonomous', 'robotics', 'machine learning', 'ai', 'ml',\n  'computer vision', 'deep learning', 'pytorch', 'tensorflow', 'opencv',\n  'plc', 'automation', 'scada', 'c++', 'matlab', 'simulink', 'embedded',\n  'lidar', 'sensor fusion', 'slam', 'path planning', 'neural network',\n  'internship', 'intern', 'entry level'\n];\n\nfunction scoreJob(job) {\n  const text = `${job.jobTitle} ${job.description} ${job.seniorityLevel} ${job.employmentType}`.toLowerCase();\n  \n  // ONLY penalize if PhD is strictly in the JOB TITLE!\n  // If it's just in the description (\"Masters or PhD\"), it's fine!\n  if (job.jobTitle.toLowerCase().includes('phd') || job.jobTitle.toLowerCase().includes('ph.d')) {\n    return -100;\n  }\n\n  let score = 0;\n  for (const kw of skillKeywords) {\n    if (text.includes(kw)) score += 1;\n  }\n  if (text.includes('intern')) score += 3;\n  if (job.seniorityLevel && job.seniorityLevel.toLowerCase().includes('intern')) score += 3;\n  return score;\n}\n\nfor (let job of items) {\n  job._score = scoreJob(job);\n}\n\nconst validJobs = items.filter(j => j._score > -50);\nconst sortedJobs = validJobs.sort((a, b) => b._score - a._score);\nconst topJobs = sortedJobs.slice(0, 18);\nreturn topJobs.map(job => ({ json: job }));"
+      },
+      "id": "53024b20-e702-4305-a0e5-4736fc2367fb",
+      "name": "Rank & Filter Top Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.GOOGLE_SHEET_ID }}",
+          "mode": "id",
+          "cachedResultName": "Configured Google Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/GOOGLE_SHEET_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $env.GOOGLE_SHEET_TAB || \"Sheet1\" }}",
+          "mode": "id",
+          "cachedResultName": "Configured Sheet Tab",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/GOOGLE_SHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.postedDate }}",
+            "Category": "={{ $json.searchQuery }}",
+            "Company": "={{ $json.company }}",
+            "Job Title": "={{ $json.jobTitle }}",
+            "Location": "={{ $json.location }}",
+            "Posted": "={{ $json.postedDate }}",
+            "Apply Link": "={{ $json.jobUrl }}",
+            "Seniority": "={{ $json.seniorityLevel }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Job Title",
+              "displayName": "Job Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Location",
+              "displayName": "Location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Posted",
+              "displayName": "Posted",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Apply Link",
+              "displayName": "Apply Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Seniority",
+              "displayName": "Seniority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "bbe06aee-5e8a-40ed-a0f5-3c876222e23e",
+      "name": "Save All Jobs to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1664,
+        432
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily 7AM Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config - Search Queries & Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config - Search Queries & Settings": {
+      "main": [
+        [
+          {
+            "node": "Split Into Individual Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Individual Queries": {
+      "main": [
+        [
+          {
+            "node": "Apify - Scrape LinkedIn Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify - Scrape LinkedIn Jobs": {
+      "main": [
+        [
+          {
+            "node": "Fetch Apify Job Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Apify Job Results": {
+      "main": [
+        [
+          {
+            "node": "Parse Job Listings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Job Listings": {
+      "main": [
+        [
+          {
+            "node": "Save All Jobs to Google Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Rank & Filter Top Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save All Jobs to Google Sheet": {
+      "main": [
+        []
+      ]
+    },
+    "Rank & Filter Top Jobs": {
+      "main": [
+        [
+          {
+            "node": "Google Drive - Get Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive - Get Resume": {
+      "main": [
+        [
+          {
+            "node": "Extract Resume Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Resume Text": {
+      "main": [
+        [
+          {
+            "node": "Merge Resume + Job Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Resume + Job Data": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Gemini - Tailor Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Tailor Resume": {
+      "main": [
+        [
+          {
+            "node": "Parse Tailored Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Tailored Resume": {
+      "main": [
+        [
+          {
+            "node": "Create Google Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Google Doc": {
+      "main": [
+        [
+          {
+            "node": "Insert Resume Text into Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Resume Text into Doc": {
+      "main": [
+        [
+          {
+            "node": "Build Summary Link Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary Link Item": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Results": {
+      "main": [
+        [
+          {
+            "node": "Build Email Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email Summary": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Send Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "tags": [
+    {
+      "name": "resume-tailoring"
+    },
+    {
+      "name": "job-automation"
+    }
+  ]
+}

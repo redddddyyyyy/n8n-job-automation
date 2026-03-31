@@ -1,0 +1,11 @@
+{
+  "name": "n8n-job-automation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sanitized n8n workflow for a daily AI-assisted job-market data pipeline.",
+  "scripts": {
+    "test": "node tests/test_scoring.js"
+  },
+  "license": "MIT"
+}
+

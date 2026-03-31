@@ -1,0 +1,23 @@
+[
+  {
+    "company": "Example Motion Labs",
+    "jobTitle": "Robotics Software Intern",
+    "location": "Boston, MA",
+    "category": "Robotics Engineer Intern",
+    "postedDate": "2026-06-29",
+    "jobUrl": "https://example.com/jobs/robotics-software-intern",
+    "resumeDocUrl": "https://docs.google.com/document/d/EXAMPLE_DOC_ID/edit",
+    "score": 9
+  },
+  {
+    "company": "Fictional Controls Co",
+    "jobTitle": "Manufacturing Automation Intern",
+    "location": "Detroit, MI",
+    "category": "Automation Engineer Intern",
+    "postedDate": "2026-06-29",
+    "jobUrl": "https://example.com/jobs/automation-intern",
+    "resumeDocUrl": "https://docs.google.com/document/d/EXAMPLE_DOC_ID_2/edit",
+    "score": 8
+  }
+]
+

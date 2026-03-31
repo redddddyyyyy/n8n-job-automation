@@ -1,0 +1,25 @@
+[
+  {
+    "searchQuery": "Robotics Engineer Intern",
+    "jobTitle": "Robotics Software Intern",
+    "company": "Example Motion Labs",
+    "location": "Boston, MA",
+    "jobUrl": "https://example.com/jobs/robotics-software-intern",
+    "postedDate": "2026-06-29",
+    "description": "Internship role using Python, ROS 2, computer vision, and path planning for prototype mobile robots.",
+    "seniorityLevel": "Internship",
+    "employmentType": "Internship"
+  },
+  {
+    "searchQuery": "Automation Engineer Intern",
+    "jobTitle": "Manufacturing Automation Intern",
+    "company": "Fictional Controls Co",
+    "location": "Detroit, MI",
+    "jobUrl": "https://example.com/jobs/automation-intern",
+    "postedDate": "2026-06-29",
+    "description": "Support PLC tooling, SCADA dashboards, Python scripts, and production-line data collection.",
+    "seniorityLevel": "Internship",
+    "employmentType": "Internship"
+  }
+]
+
